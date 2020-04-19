@@ -34,11 +34,19 @@ char cpakArr[ CPAKBYTES ];
 // Flag set high if the CPak should be flashed.
 char updateCPak = 0;
 
+
+// CPak parsing function declarations.
+char getChar( uint8_t c );
+uint16_t getHeaderChkSum( uint8_t* arr, unsigned int offset );
+bool validHeader( uint8_t* arr );
+unsigned int readEntries( uint8_t* arr, char entries[][17] );
+
+
 // Main page HTML.
 const char* mainPage = 
 "<h1>WiCPak 64</h1>\
 <p><a href=\"getpak\">Click here to download CPak.</a></p>\
-<p>Upload below.</p\
+<p>Upload below.</p>\
 <form method=\"post\" enctype=\"multipart/form-data\">\
 <input type=\"file\" name=\"name\">\
 <input class=\"button\" type=\"submit\" value=\"Upload to CPak\">\
@@ -397,4 +405,178 @@ void loop() {
     writeMemPak();
     updateCPak = 0;
   }
+}
+
+// CPak parsing functions.
+char getChar( uint8_t c ) {
+  switch( c ) {
+    case 0:
+      return 0;
+    case 15:
+      return ' ';
+    case 16:
+      return '0';
+    case 17:
+      return '1';
+    case 18:
+      return '2';
+    case 19:
+      return '3';
+    case 20:
+      return '4';
+    case 21:
+      return '5';
+    case 22:
+      return '6';
+    case 23:
+      return '7';
+    case 24:
+      return '8';
+    case 25:
+      return '9';
+    case 26:
+      return 'A';
+    case 27:
+      return 'B';
+    case 28:
+      return 'C';
+    case 29:
+      return 'D';
+    case 30:
+      return 'E';
+    case 31:
+      return 'F';
+    case 32:
+      return 'G';
+    case 33:
+      return 'H';
+    case 34:
+      return 'I';
+    case 35:
+      return 'J';
+    case 36:
+      return 'K';
+    case 37:
+      return 'L';
+    case 38:
+      return 'M';
+    case 39:
+      return 'N';
+    case 40:
+      return 'O';
+    case 41:
+      return 'P';
+    case 42:
+      return 'Q';
+    case 43:
+      return 'R';
+    case 44:
+      return 'S';
+    case 45:
+      return 'T';
+    case 46:
+      return 'U';
+    case 47:
+      return 'V';
+    case 48:
+      return 'W';
+    case 49:
+      return 'X';
+    case 50:
+      return 'Y';
+    case 51:
+      return 'Z';
+    case 52:
+      return '!';
+    case 53:
+      return '"';
+    case 54:
+      return '#';
+    case 55:
+      return '\'';
+    case 56:
+      return '*';
+    case 57:
+      return '+';
+    case 58:
+      return ',';
+    case 59:
+      return '-';
+    case 60:
+      return '.';
+    case 61:
+      return '/';
+    case 62:
+      return ':';
+    case 63:
+      return '=';
+    case 64:
+      return '?';
+    case 65:
+      return '@';
+    default:
+      return '?';
+  }
+}
+
+uint16_t getHeaderChkSum( uint8_t* arr, unsigned int offset ) {
+  uint16_t chk = 0;
+  for ( unsigned int i = 0; i < 28; i += 2 ) {
+    chk += ( arr[ offset + i ] << 8 ) + arr[ offset + i + 1 ];
+  }
+  
+  return chk;
+}
+bool validHeader( uint8_t* arr ) {
+  // Check the header checksums.
+  unsigned int offsets[] = { 0x20, 0x60, 0x80, 0xC0 };
+  
+  bool valid = true;
+  for ( int i = 0; i < 4; ++i ) {
+    uint16_t chk = getHeaderChkSum( arr, offsets[ i ] );
+    uint16_t cmpSum = ( arr[ offsets[ i ] + 0x1C ] << 8 ) + 
+                      ( arr[ offsets[ i ]+ 0x1D ] );
+    if ( chk != cmpSum ) {
+      valid = false;
+      break;
+    }
+    
+    cmpSum = 0xFFF2 - ( ( arr[ offsets[ i ] + 0x1E ] << 8 ) + 
+                      ( arr[ offsets[ i ] + 0x1F ] ) );
+                      
+    if ( chk != cmpSum ) {
+      valid = false;
+      break;
+    }
+    
+  }
+  
+  return valid;
+}
+
+unsigned int readEntries( uint8_t* arr, char entries[][17] ) {
+  unsigned int nrEntries = 0;
+  // We only read the game note area, which is placed at pages 3 and 4.
+  // As a page is 256B large, we go from 0x300 to 0x500.
+  // Each note information is 32B long.
+  for ( int i = 0x300; i < 0x500; i += 32 ) {
+    // Get the I-Node for a validity check.
+    uint16_t inode = ( arr[ i + 0x06 ] << 8 ) + arr[ i + 0x07 ];
+    // The first valid game page is 5, the last is 127.
+    bool val = ( inode >= 5 && inode <= 127 );
+    if ( val ) {
+      char* name = entries[ nrEntries ];
+      unsigned int ind = 0;
+      // The note's name is 16B long at an offset of 0x10.
+      for ( int j = 0; j < 16; ++j ) {
+        name[ ind++ ] = getChar( arr[ i + 0x10 + j ] );
+      }
+      
+      // For now, just ignore the extensions.
+      name[ ind ] = '\0';
+      nrEntries++;
+    }
+  }
+  
+  return nrEntries;
 }
