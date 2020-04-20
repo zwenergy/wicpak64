@@ -55,6 +55,7 @@ const char* mainPage =
 
 // Server functions.
 void handleRoot() {
+  Serial.println( "Handling root GET" );
   // Send the main page.
   server.send( 200, "text/html", mainPage );
 }
@@ -274,6 +275,9 @@ void readMemPak() {
 
     // Store it.
     cpakArr[ addr ] = curByte;
+
+    // This could take a while, so feed the dog.
+    ESP.wdtFeed();
   }
 
   // Store into the flash.
@@ -331,6 +335,9 @@ void writeMemPak() {
 
     // And perform the write.
     FRAMWrite();
+
+    // This could take a while, so feed the dog.
+    ESP.wdtFeed();
   }
 }
 
@@ -390,6 +397,8 @@ void setup() {
 
   // Handle everything else.
   server.onNotFound( handle404 );
+
+  server.begin();
 
   // We start by reading in the current content of the
   // memory pak.
