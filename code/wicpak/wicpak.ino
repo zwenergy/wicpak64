@@ -43,19 +43,52 @@ unsigned int readEntries( uint8_t* arr, char entries[][17] );
 
 
 // Main page HTML.
-const char* mainPage = 
+const char* mainHeader = 
 "<h1>WiCPak 64</h1>\
-<p><a href=\"getpak\">Click here to download CPak.</a></p>\
-<p>Upload below.</p>\
+<p><a href=\"getpak\">Click here to download CPak.</a></p>";
+
+const char* mainUp =
+"<p>Upload below.</p>\
 <form method=\"post\" enctype=\"multipart/form-data\">\
 <input type=\"file\" name=\"name\">\
 <input class=\"button\" type=\"submit\" value=\"Upload to CPak\">\
 </form>";
 
+// Struct holding entry informations.
+struct gameEntry {
+  char entryName[ 17 ];
+  char gameName[ 62 ];
+};
+
+// Struct holding CPak infos.
+struct cpakInfo {
+  struct gameEntry entries[ 16 ];
+  int nrEntries;
+} curCPakInfo;
+
 
 // Server functions.
 void handleRoot() {
   Serial.println( "Handling root GET" );
+  // Create main page.
+  String mainPage( mainHeader );
+  // Create the info part.
+  mainPage += "<p><b>CPak Status</b></p>";
+  if ( curCPakInfo.nrEntries == -1 ) {
+    mainPage += "<p><i>Corrupt</i></p>";
+  } else if ( curCPakInfo.nrEntries == 0 ) {
+    mainPage += "<p><i>Empty</i></p>";
+  } else {
+    for ( int i = 0; i < curCPakInfo.nrEntries; ++i ) {
+      mainPage += "<p>";
+      mainPage += curCPakInfo.entries[ i ].entryName;
+      mainPage += "</p>";
+    }
+  }
+
+  mainPage += "<br>";
+  mainPage += mainUp;
+
   // Send the main page.
   server.send( 200, "text/html", mainPage );
 }
@@ -377,7 +410,7 @@ void setup() {
   Serial.println( WiFi.softAPIP() );
 
   // Set up DNS.
-  if ( !MDNS.begin( "wicpak64.local" ) ) {
+  if ( !MDNS.begin( "wicpak64" ) ) {
     Serial.println( "Error setting up DNS" );
   }
 
@@ -403,6 +436,9 @@ void setup() {
   // We start by reading in the current content of the
   // memory pak.
   readMemPak();
+
+  // And read in the infos.
+  readEntries( (uint8_t*) cpakArr );
 }
 
 void loop() {
@@ -412,6 +448,8 @@ void loop() {
   // Check if a new CPak file was uploaded.
   if ( updateCPak ) {
     writeMemPak();
+    // Update the CPak info.
+    readEntries( (uint8_t*) cpakArr );
     updateCPak = 0;
   }
 }
@@ -563,8 +601,13 @@ bool validHeader( uint8_t* arr ) {
   return valid;
 }
 
-unsigned int readEntries( uint8_t* arr, char entries[][17] ) {
-  unsigned int nrEntries = 0;
+void readEntries( uint8_t* arr ) {
+  curCPakInfo.nrEntries = 0;
+  if ( !validHeader( arr ) ) {
+    curCPakInfo.nrEntries = -1;
+    return;
+  }
+ 
   // We only read the game note area, which is placed at pages 3 and 4.
   // As a page is 256B large, we go from 0x300 to 0x500.
   // Each note information is 32B long.
@@ -574,7 +617,7 @@ unsigned int readEntries( uint8_t* arr, char entries[][17] ) {
     // The first valid game page is 5, the last is 127.
     bool val = ( inode >= 5 && inode <= 127 );
     if ( val ) {
-      char* name = entries[ nrEntries ];
+      char* name = curCPakInfo.entries[ curCPakInfo.nrEntries ].entryName;
       unsigned int ind = 0;
       // The note's name is 16B long at an offset of 0x10.
       for ( int j = 0; j < 16; ++j ) {
@@ -583,9 +626,9 @@ unsigned int readEntries( uint8_t* arr, char entries[][17] ) {
       
       // For now, just ignore the extensions.
       name[ ind ] = '\0';
-      nrEntries++;
+      curCPakInfo.nrEntries++;
     }
   }
   
-  return nrEntries;
+  return;
 }
