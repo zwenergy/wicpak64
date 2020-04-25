@@ -391,7 +391,7 @@ void writeMemPak() {
     Serial.println( "CPak file is shorter than 4096!" );
   }
   
-  for ( int i = 0; i < CPAKHALF; ++i ) {
+  for ( unsigned int i = 0; i < CPAKHALF; ++i ) {
     if ( i >= f.size() )
       break;
 
@@ -407,7 +407,7 @@ void writeMemPak() {
   writeMemPakRange( 0, CPAKHALF );
 
   // And the second half.
-  for ( int i = 0; i < CPAKHALF; ++i ) {
+  for ( unsigned int i = 0; i < CPAKHALF; ++i ) {
     if ( i + CPAKHALF >= f.size() )
       break;
 
